@@ -8,6 +8,9 @@
 #define LDR_PIN 34
 #define SOIL_PIN 35
 
+const int AIR_VALUE = 3800;
+const int WATER_VALUE = 1200;
+
 const char* WIFI_SSID = "CHENAB";
 const char* WIFI_PASS = "44zMf3QqdU&KC3Mv";
 
@@ -51,21 +54,15 @@ void connectWiFi() {
   lcd.clear();
 }
 
-void setup() {
-  Serial.begin(115200);
-  lcd.init();
-  lcd.backlight();
+float getSoilMoisturePercent(int sensorValue) {
+  if (sensorValue > AIR_VALUE) sensorValue = AIR_VALUE;
+  if (sensorValue < WATER_VALUE) sensorValue = WATER_VALUE;
 
-  connectWiFi();
-  dht.setup(DHT_PIN, DHTesp::DHT11);
-
-  lcd.setCursor(0, 0);
-  lcd.print("System Ready");
-  delay(1000);
-  lcd.clear();
+  float moisture = (float)(AIR_VALUE - sensorValue) * 100 / (AIR_VALUE - WATER_VALUE);
+  return moisture;
 }
 
-void sendToSupabase(float temp, float hum, int light, int soil) {
+void sendToSupabase(float temp, float hum, int light, float soilMoisture) {
   if (!wifiConnected) {
     Serial.println("WiFi not connected, skipping Supabase POST.");
     return;
@@ -82,10 +79,12 @@ void sendToSupabase(float temp, float hum, int light, int soil) {
   doc["temperature"] = temp;
   doc["humidity"] = hum;
   doc["light"] = light;
-  doc["soil"] = soil;
+  doc["soil"] = soilMoisture;
 
   String json;
   serializeJson(doc, json);
+
+  Serial.println("Posting to Supabase: " + json);
 
   int httpResponseCode = http.POST(json);
 
@@ -100,13 +99,28 @@ void sendToSupabase(float temp, float hum, int light, int soil) {
   http.end();
 }
 
+void setup() {
+  Serial.begin(115200);
+  lcd.init();
+  lcd.backlight();
+
+  connectWiFi();
+  dht.setup(DHT_PIN, DHTesp::DHT11);
+
+  lcd.setCursor(0, 0);
+  lcd.print("System Ready");
+  delay(1000);
+  lcd.clear();
+}
+
 void loop() {
   TempAndHumidity data = dht.getTempAndHumidity();
   float temperature = data.temperature;
   float humidity = data.humidity;
 
   int lightValue = analogRead(LDR_PIN);
-  int soilValue = analogRead(SOIL_PIN);
+  int soilRaw = analogRead(SOIL_PIN);
+  float soilMoisture = getSoilMoisturePercent(soilRaw);
 
   lcd.setCursor(0, 0);
   lcd.print("T:");
@@ -119,10 +133,10 @@ void loop() {
   lcd.print("L:");
   lcd.print(lightValue);
   lcd.print(" S:");
-  lcd.print(soilValue);
+  lcd.print(soilMoisture, 3);
 
-  Serial.printf("Temp: %.1f  Hum: %.1f  Light: %d  Soil: %d\n", temperature, humidity, lightValue, soilValue);
-  sendToSupabase(temperature, humidity, lightValue, soilValue);
+  Serial.printf("Temp: %.1f°C  Hum: %.1f%%  Light: %d  Soil: %.1f%%\n", temperature, humidity, lightValue, soilMoisture);
+  sendToSupabase(temperature, humidity, lightValue, soilMoisture);
 
   delay(10000);
 }
