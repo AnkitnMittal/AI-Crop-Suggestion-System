@@ -8,6 +8,10 @@
 #define LDR_PIN 34
 #define SOIL_PIN 35
 
+#define R_FIXED 10000.0
+#define A_CONST 500000.0
+#define B_CONST 0.7
+
 const int AIR_VALUE = 3800;
 const int WATER_VALUE = 1200;
 
@@ -60,6 +64,18 @@ float getSoilMoisturePercent(int sensorValue) {
 
   float moisture = (float)(AIR_VALUE - sensorValue) * 100 / (AIR_VALUE - WATER_VALUE);
   return moisture;
+}
+
+float getLux(int adc) {
+  int darkADC = 2500;
+  int brightADC = 50;
+  float darkLux = 1.0;
+  float brightLux = 2000.0;
+
+  float lux = darkLux + (brightLux - darkLux) * (float)(darkADC - adc) / (darkADC - brightADC);
+  if (lux < darkLux) lux = darkLux;
+  if (lux > brightLux) lux = brightLux;
+  return lux;
 }
 
 void sendToSupabase(float temp, float hum, int light, float soilMoisture) {
@@ -121,6 +137,7 @@ void loop() {
   int lightValue = analogRead(LDR_PIN);
   int soilRaw = analogRead(SOIL_PIN);
   float soilMoisture = getSoilMoisturePercent(soilRaw);
+  int lux = (int)getLux(lightValue);
 
   lcd.setCursor(0, 0);
   lcd.print("T:");
@@ -131,12 +148,12 @@ void loop() {
 
   lcd.setCursor(0, 1);
   lcd.print("L:");
-  lcd.print(lightValue);
-  lcd.print(" S:");
-  lcd.print(soilMoisture, 3);
+  lcd.print(lux);
+  lcd.print(" lx S:");
+  lcd.print(soilMoisture, 1);
 
-  Serial.printf("Temp: %.1f°C  Hum: %.1f%%  Light: %d  Soil: %.1f%%\n", temperature, humidity, lightValue, soilMoisture);
-  sendToSupabase(temperature, humidity, lightValue, soilMoisture);
+  Serial.printf("Temp: %.1f°C  Hum: %.1f%%  Light: %d  Soil: %.1f%%\n", temperature, humidity, lux, soilMoisture);
+  sendToSupabase(temperature, humidity, lux, soilMoisture);
 
   delay(10000);
 }
