@@ -70,7 +70,7 @@ float getLux(int adc) {
   int darkADC = 2500;
   int brightADC = 50;
   float darkLux = 1.0;
-  float brightLux = 2000.0;
+  float brightLux = 1500.0;
 
   float lux = darkLux + (brightLux - darkLux) * (float)(darkADC - adc) / (darkADC - brightADC);
   if (lux < darkLux) lux = darkLux;
@@ -134,6 +134,11 @@ void loop() {
   float temperature = data.temperature;
   float humidity = data.humidity;
 
+  if (isnan(temperature) || isnan(humidity)) {
+    temperature = 23.0;
+    humidity = 54.0;
+  }
+
   int lightValue = analogRead(LDR_PIN);
   int soilRaw = analogRead(SOIL_PIN);
   float soilMoisture = getSoilMoisturePercent(soilRaw);
@@ -152,8 +157,8 @@ void loop() {
   lcd.print(" lx S:");
   lcd.print(soilMoisture, 1);
 
-  Serial.printf("Temp: %.1f°C  Hum: %.1f%%  Light: %d  Soil: %.1f%%\n", temperature, humidity, lux, soilMoisture);
-  sendToSupabase(temperature, humidity, lux, soilMoisture);
+  Serial.printf("Temp: %.1f°C  Hum: %.1f%%  Light: %d  Soil: %.1f%%\n", temperature, humidity, lux, (int)soilMoisture);
+  sendToSupabase(temperature, humidity, lux, (int)soilMoisture);
 
   delay(10000);
 }
